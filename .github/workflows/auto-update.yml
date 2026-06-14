@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   check-updates:
@@ -18,6 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: dev
           fetch-depth: 0
 
       - name: Set up Python
@@ -51,22 +51,12 @@ jobs:
             echo "apps_list=" >> $GITHUB_OUTPUT
           fi
 
-      - name: Configure Git
+      - name: Commit and push changes
         if: steps.check_updates.outputs.has_updates == 'true'
         run: |
+          # 配置 Git
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-      - name: Create branch and commit
-        if: steps.check_updates.outputs.has_updates == 'true'
-        id: commit
-        run: |
-          # 生成分支名
-          BRANCH_NAME="auto-update-$(date +%Y%m%d-%H%M%S)"
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-
-          # 创建并切换到新分支
-          git checkout -b $BRANCH_NAME
 
           # 添加所有更改
           git add apps/
@@ -77,53 +67,8 @@ jobs:
 
           git commit -m "chore(deps): update ${APPS} at ${TIMESTAMP}"
 
-          # 推送分支
-          git push -u origin $BRANCH_NAME
-
-      - name: Create Pull Request
-        if: steps.check_updates.outputs.has_updates == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 生成 PR 正文
-          TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-
-          PR_BODY=$(cat <<EOF
-          ## 🤖 自动更新
-
-          此 PR 由 GitHub Actions 自动创建，检测到以下应用有新版本：
-
-          $(jq -r '.[] | "- **\(.app)**: \(.old_version) → \(.new_version)"' updates.json)
-
-          ### 📋 详细信息
-
-          \`\`\`json
-          $(cat updates.json)
-          \`\`\`
-
-          ### ✅ 变更内容
-          - 创建了新版本文件夹
-          - 更新了 docker-compose.yml 中的镜像标签
-          - 复制了配置文件到新版本
-
-          ### 🔍 检查清单
-          - [ ] 验证新版本的 Docker 镜像是否可用
-          - [ ] 检查配置文件是否需要调整
-          - [ ] 测试应用是否可以正常启动
-
-          ---
-
-          🕐 **更新时间**: ${TIMESTAMP}
-          📦 **更新数量**: ${{ steps.check_updates.outputs.update_count }} 个应用
-          EOF
-          )
-
-          # 创建 PR
-          gh pr create \
-            --title "chore(deps): update ${{ steps.check_updates.outputs.update_count }} apps at ${TIMESTAMP}" \
-            --body "$PR_BODY" \
-            --base dev \
-            --head ${{ steps.commit.outputs.branch_name }}
+          # 推送到 dev 分支
+          git push origin dev
 
       - name: Summary
         run: |
@@ -132,10 +77,10 @@ jobs:
           if [ "${{ steps.check_updates.outputs.has_updates }}" == "true" ]; then
             echo "✅ 发现 ${{ steps.check_updates.outputs.update_count }} 个应用更新" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### 更新详情" >> $GITHUB_STEP_SUMMARY
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            cat updates.json >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "#### 📦 更新列表" >> $GITHUB_STEP_SUMMARY
+            jq -r '.[] | "- **\(.app)**: \(.old_version) → \(.new_version)"' updates.json >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ 已自动提交到 dev 分支" >> $GITHUB_STEP_SUMMARY
           else
             echo "ℹ️ 所有应用已是最新版本" >> $GITHUB_STEP_SUMMARY
           fi
