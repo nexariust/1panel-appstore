@@ -123,8 +123,7 @@ jobs:
             --title "chore(deps): update ${{ steps.check_updates.outputs.update_count }} apps at ${TIMESTAMP}" \
             --body "$PR_BODY" \
             --base dev \
-            --head ${{ steps.commit.outputs.branch_name }} \
-            --label "dependencies,automated"
+            --head ${{ steps.commit.outputs.branch_name }}
 
       - name: Summary
         run: |
