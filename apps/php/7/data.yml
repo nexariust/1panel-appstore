@@ -16,7 +16,7 @@ additionalProperties:
             tr: Uzantılar
           labelEn: Extensions
           allowCreate: true
-          default:
+          default: []
           values:
             - label: opcache
               value: opcache
